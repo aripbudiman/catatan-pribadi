@@ -25,19 +25,19 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
             <div className="flex items-center gap-4 text-xs font-medium text-zinc-400">
               <span className="flex items-center gap-1.5 px-2 py-1 bg-zinc-100 rounded text-zinc-600">
                 <Tag className="w-3 h-3" />
-                {article.category}
+                {article.category || 'General'}
               </span>
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-3 h-3" />
-                {format(new Date(article.created_at), 'MMM d, yyyy')}
+                {article.created_at ? format(new Date(article.created_at), 'MMM d, yyyy') : 'Recently'}
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3 h-3" />
-                Updated {format(new Date(article.updated_at), 'MMM d, yyyy')}
+                Updated {article.updated_at ? format(new Date(article.updated_at), 'MMM d, yyyy') : 'Recently'}
               </span>
             </div>
             <h1 className="text-4xl font-extrabold text-zinc-900 tracking-tight">
-              {article.title}
+              {article.title || 'Untitled Article'}
             </h1>
           </div>
           <div className="flex items-center gap-2">

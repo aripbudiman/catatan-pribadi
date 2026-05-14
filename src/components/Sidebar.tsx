@@ -1,6 +1,6 @@
 import React from 'react';
-import { Article } from '../types';
-import { Search, Plus, Book, Hash, ChevronRight } from 'lucide-react';
+import { Article, ServerStatus } from '../types';
+import { Search, Plus, Book, Hash, ChevronRight, AlertCircle, Database } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -15,6 +15,9 @@ interface SidebarProps {
   onNew: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  walletAddress: string | null;
+  onConnectWallet: () => void;
+  status: ServerStatus | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,13 +27,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNew,
   searchQuery,
   onSearchChange,
+  walletAddress,
+  onConnectWallet,
+  status,
 }) => {
-  const categories = Array.from(new Set(articles.map((a) => a.category)));
+  const categories = Array.from(new Set(articles.map((a) => a.category || 'General')));
 
-  const filteredArticles = articles.filter((a) =>
-    a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredArticles = articles.filter((a) => {
+    const title = a.title || '';
+    const category = a.category || '';
+    const query = searchQuery.toLowerCase();
+    return title.toLowerCase().includes(query) || category.toLowerCase().includes(query);
+  });
 
   return (
     <div className="w-80 h-screen border-r border-zinc-200 bg-zinc-50 flex flex-col overflow-hidden">
@@ -100,7 +108,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="p-4 border-t border-zinc-200 bg-zinc-100/50">
+      <div className="p-4 border-t border-zinc-200 bg-zinc-100/50 space-y-3">
+        {walletAddress ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-mono truncate">
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </span>
+          </div>
+        ) : (
+          <button
+            onClick={onConnectWallet}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-800 text-white rounded-lg text-xs font-semibold hover:bg-zinc-900 transition-all shadow-sm"
+          >
+            <Book className="w-4 h-4" />
+            Connect MetaMask
+          </button>
+        )}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
             AB
@@ -110,6 +134,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[10px] text-zinc-500 truncate">muhamadarifbudiman22@gmail.com</p>
           </div>
         </div>
+        
+        {status && (
+          <div className={cn(
+            "pt-3 mt-1 border-t border-zinc-200 text-[10px] flex items-center justify-between",
+            status.auth_configured ? "text-emerald-600" : "text-amber-600"
+          )}>
+            <div className="flex items-center gap-1">
+              <Database className="w-3 h-3" />
+              <span>{status.type}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {status.auth_configured ? "Authenticated" : "Public Rules Needed"}
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                status.auth_configured ? "bg-emerald-500" : "bg-amber-500"
+              )} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

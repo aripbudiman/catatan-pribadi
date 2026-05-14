@@ -8,3 +8,16 @@ export interface Article {
 }
 
 export type ArticleInput = Pick<Article, 'title' | 'content' | 'category'>;
+
+export interface ServerStatus {
+  database: string;
+  type: string;
+  uri: string;
+  auth_configured: boolean;
+}
+
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
