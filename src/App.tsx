@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ArticleView } from './components/ArticleView';
 import { ArticleEdit } from './components/ArticleEdit';
-import { Article, ArticleInput, ServerStatus } from './types';
+import { Article, ArticleInput } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, BookOpen, AlertCircle } from 'lucide-react';
+
+const FIREBASE_URL = 'https://english-zone-2c406-default-rtdb.asia-southeast1.firebasedatabase.app/article';
 
 export default function App() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -14,24 +16,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [status, setStatus] = useState<ServerStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchArticles();
     checkWalletConnection();
-    fetchStatus();
   }, []);
 
-  const fetchStatus = async () => {
-    try {
-      const response = await fetch('/api/status');
-      const data = await response.json();
-      setStatus(data);
-    } catch (error) {
-      console.error('Failed to fetch status:', error);
-    }
-  };
 
   const checkWalletConnection = async () => {
     if (typeof window.ethereum !== 'undefined') {
@@ -65,28 +56,36 @@ export default function App() {
   const fetchArticles = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/articles');
-      const data = await response.json();
-      
+      const response = await fetch(`${FIREBASE_URL}.json`);
+
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           setError('PERMISSION_DENIED');
         }
-        throw new Error(data.error || 'Failed to fetch articles');
+        throw new Error(`Firebase error ${response.status}`);
       }
 
-      if (Array.isArray(data)) {
-        setArticles(data);
-        if (data.length > 0 && selectedId === null) {
-          setSelectedId(data[0].id);
-        }
-      } else {
-        console.error('Expected array of articles, got:', data);
+      const data = await response.json();
+
+      if (!data) {
         setArticles([]);
+        return;
+      }
+
+      const list: Article[] = Object.keys(data)
+        .map((key) => ({ ...data[key], id: key }))
+        .sort((a, b) => {
+          const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          return dateB - dateA;
+        });
+
+      setArticles(list);
+      if (list.length > 0 && selectedId === null) {
+        setSelectedId(list[0].id);
       }
     } catch (error: any) {
       console.error('Failed to fetch articles:', error);
-      // Don't clear articles if we already have some, but handle empty state
     } finally {
       setLoading(false);
     }
@@ -94,28 +93,30 @@ export default function App() {
 
   const handleSave = async (data: ArticleInput) => {
     try {
+      const now = new Date().toISOString();
       if (isCreating) {
-        const response = await fetch('/api/articles', {
+        const articleData = { ...data, category: data.category || 'General', created_at: now, updated_at: now };
+        const response = await fetch(`${FIREBASE_URL}.json`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: JSON.stringify(articleData),
         });
+        if (!response.ok) throw new Error(`Firebase error ${response.status}`);
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Failed to create article');
-        
-        setArticles([result, ...articles]);
-        setSelectedId(result.id);
+        const newArticle: Article = { ...articleData, id: result.name };
+        setArticles([newArticle, ...articles]);
+        setSelectedId(newArticle.id);
         setIsCreating(false);
       } else if (selectedId) {
-        const response = await fetch(`/api/articles/${selectedId}`, {
-          method: 'PUT',
+        const articleData = { ...data, category: data.category || 'General', updated_at: now };
+        const response = await fetch(`${FIREBASE_URL}/${selectedId}.json`, {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: JSON.stringify(articleData),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Failed to update article');
-        
-        setArticles(articles.map((a) => (a.id === selectedId ? result : a)));
+        if (!response.ok) throw new Error(`Firebase error ${response.status}`);
+        const updated = await response.json();
+        setArticles(articles.map((a) => (a.id === selectedId ? { ...a, ...updated, id: selectedId } : a)));
         setIsEditing(false);
       }
     } catch (error: any) {
@@ -127,8 +128,8 @@ export default function App() {
   const handleDelete = async () => {
     if (!selectedId) return;
     try {
-      const response = await fetch(`/api/articles/${selectedId}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete article');
+      const response = await fetch(`${FIREBASE_URL}/${selectedId}.json`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`Firebase error ${response.status}`);
       const remaining = articles.filter((a) => a.id !== selectedId);
       setArticles(remaining);
       setSelectedId(remaining.length > 0 ? remaining[0].id : null);
@@ -168,7 +169,6 @@ export default function App() {
         onSearchChange={setSearchQuery}
         walletAddress={walletAddress}
         onConnectWallet={handleConnectWallet}
-        status={status}
       />
 
       <main className="flex-1 relative overflow-hidden">

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Article, ServerStatus } from '../types';
-import { Search, Plus, Book, Hash, ChevronRight, AlertCircle, Database } from 'lucide-react';
+import { Article } from '../types';
+import { Search, Plus, Book, Hash, ChevronRight, Database } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -17,7 +17,6 @@ interface SidebarProps {
   onSearchChange: (query: string) => void;
   walletAddress: string | null;
   onConnectWallet: () => void;
-  status: ServerStatus | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,7 +28,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSearchChange,
   walletAddress,
   onConnectWallet,
-  status,
 }) => {
   const categories = Array.from(new Set(articles.map((a) => a.category || 'General')));
 
@@ -135,24 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
         
-        {status && (
-          <div className={cn(
-            "pt-3 mt-1 border-t border-zinc-200 text-[10px] flex items-center justify-between",
-            status.auth_configured ? "text-emerald-600" : "text-amber-600"
-          )}>
-            <div className="flex items-center gap-1">
-              <Database className="w-3 h-3" />
-              <span>{status.type}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {status.auth_configured ? "Authenticated" : "Public Rules Needed"}
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                status.auth_configured ? "bg-emerald-500" : "bg-amber-500"
-              )} />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
