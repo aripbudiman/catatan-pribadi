@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Article } from '../types';
-import { Edit2, Trash2, Calendar, Tag, Clock } from 'lucide-vue-next';
+import { Edit2, Trash2, Calendar, Tag, Clock, List } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/vs2015.css';
@@ -16,21 +16,69 @@ const emit = defineEmits<{
   (e: 'delete'): void;
 }>();
 
+const slugify = (text: string) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-');
+};
+
 const md = new MarkdownIt({
   highlight: function (str, lang) {
     if (lang && hljs.getLanguage(lang)) {
       try {
         return '<pre class="hljs"><code>' +
-               hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-               '</code></pre>';
-      } catch (__) {}
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>';
+      } catch (__) { }
     }
     return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
   }
 });
 
+// Add IDs to headings for anchor links
+md.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+  const token = tokens[idx];
+  const nextToken = tokens[idx + 1];
+  if (nextToken && nextToken.type === 'inline') {
+    const text = nextToken.content;
+    const id = slugify(text);
+    token.attrSet('id', id);
+  }
+  return self.renderToken(tokens, idx, options);
+};
+
 const renderedContent = computed(() => {
   return md.render(props.article.content || '');
+});
+
+const toc = computed(() => {
+  const headings: { level: number; text: string; id: string }[] = [];
+  // Only look for headings in the markdown content
+  const lines = (props.article.content || '').split('\n');
+
+  let inCodeBlock = false;
+  lines.forEach(line => {
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      return;
+    }
+
+    if (!inCodeBlock) {
+      const match = line.match(/^(#{1,6})\s+(.+)$/);
+      if (match) {
+        const level = match[1].length;
+        const text = match[2].replace(/[#*`\[\]()]/g, '').trim();
+        const id = slugify(text);
+        headings.push({ level, text, id });
+      }
+    }
+  });
+
+  return headings;
 });
 
 const formatDate = (dateString?: string) => {
@@ -70,21 +118,31 @@ const handleDelete = () => {
           </h1>
         </div>
         <div v-if="!readonly" class="flex items-center gap-2">
-          <button
-            @click="emit('edit')"
+          <button @click="emit('edit')"
             class="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-indigo-600 transition-all"
-            title="Edit Article"
-          >
+            title="Edit Article">
             <Edit2 class="w-5 h-5" />
           </button>
-          <button
-            @click="handleDelete"
+          <button @click="handleDelete"
             class="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-red-600 transition-all"
-            title="Delete Article"
-          >
+            title="Delete Article">
             <Trash2 class="w-5 h-5" />
           </button>
         </div>
+      </div>
+
+      <div v-if="toc.length > 0" class="mb-12 p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
+        <div class="flex items-center gap-2 mb-4 text-zinc-900">
+          <List class="w-4 h-4 text-indigo-500" />
+          <h2 class="text-sm font-bold uppercase tracking-wider">Daftar Isi</h2>
+        </div>
+        <nav class="space-y-2">
+          <a v-for="item in toc" :key="item.id" :href="'#' + item.id"
+            class="block text-zinc-600 hover:text-indigo-600 transition-colors text-sm py-1"
+            :style="{ paddingLeft: `${(item.level - 2) * 1.5}rem` }">
+            {{ item.text }}
+          </a>
+        </nav>
       </div>
 
       <div class="markdown-body prose-custom" v-html="renderedContent"></div>
@@ -93,6 +151,10 @@ const handleDelete = () => {
 </template>
 
 <style scoped>
+.flex-1 {
+  scroll-behavior: smooth;
+}
+
 .prose-custom :deep(pre.hljs) {
   margin: 1.5rem 0;
   padding: 1.5rem;
@@ -104,6 +166,7 @@ const handleDelete = () => {
   font-size: 0.9rem;
   line-height: 1.6;
 }
+
 .prose-custom :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }

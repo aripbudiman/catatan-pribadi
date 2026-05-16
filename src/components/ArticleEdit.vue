@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { Article, ArticleInput } from '../types';
-import { Save, Eye, Edit3 } from 'lucide-vue-next';
+import { Save, Eye, Edit3, List } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/vs2015.css';
@@ -20,18 +20,88 @@ const content = ref(props.article?.content || '');
 const category = ref(props.article?.category || 'General');
 const preview = ref(false);
 
+const slugify = (text: string) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-');
+};
+
 const md = new MarkdownIt({
   highlight: function (str, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return '<pre class="hljs"><code>' +
-               hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-               '</code></pre>';
-      } catch (__) {}
-    }
-    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+    const highlighted = (lang && hljs.getLanguage(lang))
+      ? hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
+      : md.utils.escapeHtml(str);
+      
+    return `<div class="code-block-wrapper group">
+              <button class="copy-code-button opacity-0 group-hover:opacity-100 transition-opacity" title="Copy code">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+              <pre class="hljs"><code>${highlighted}</code></pre>
+            </div>`;
   }
 });
+
+// Add IDs to headings for anchor links
+md.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+  const token = tokens[idx];
+  const nextToken = tokens[idx + 1];
+  if (nextToken && nextToken.type === 'inline') {
+    const text = nextToken.content;
+    const id = slugify(text);
+    token.attrSet('id', id);
+  }
+  return self.renderToken(tokens, idx, options);
+};
+
+const toc = computed(() => {
+  const headings: { level: number; text: string; id: string }[] = [];
+  const lines = (content.value || '').split('\n');
+  
+  let inCodeBlock = false;
+  lines.forEach(line => {
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      return;
+    }
+    
+    if (!inCodeBlock) {
+      const match = line.match(/^(#{1,6})\s+(.+)$/);
+      if (match) {
+        const level = match[1].length;
+        const text = match[2].replace(/[#*`\[\]()]/g, '').trim();
+        const id = slugify(text);
+        headings.push({ level, text, id });
+      }
+    }
+  });
+  
+  return headings;
+});
+
+const handleCopyClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  const button = target.closest('.copy-code-button') as HTMLButtonElement;
+  
+  if (button) {
+    const wrapper = button.closest('.code-block-wrapper');
+    const code = wrapper?.querySelector('code')?.textContent || '';
+    
+    navigator.clipboard.writeText(code).then(() => {
+      const originalInner = button.innerHTML;
+      button.innerHTML = '<span class="text-[10px] font-bold uppercase tracking-wider">Copied!</span>';
+      button.classList.add('bg-green-500/20', 'border-green-500/50', 'text-green-400');
+      
+      setTimeout(() => {
+        button.innerHTML = originalInner;
+        button.classList.remove('bg-green-500/20', 'border-green-500/50', 'text-green-400');
+      }, 2000);
+    });
+  }
+};
 
 const renderedContent = computed(() => {
   return md.render(content.value || '*No content yet*');
@@ -131,7 +201,27 @@ const handleSubmit = (e?: Event) => {
             <span class="text-xs font-bold text-indigo-600 uppercase tracking-widest">{{ category }}</span>
             <h1 class="text-4xl font-extrabold text-zinc-900 mt-2">{{ title || 'Untitled Article' }}</h1>
           </div>
-          <div class="markdown-body prose-custom" v-html="renderedContent"></div>
+
+          <div v-if="toc.length > 0" class="mb-12 p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
+            <div class="flex items-center gap-2 mb-4 text-zinc-900">
+              <List class="w-4 h-4 text-indigo-500" />
+              <h2 class="text-sm font-bold uppercase tracking-wider">Daftar Isi</h2>
+            </div>
+            <nav class="relative pl-4 border-l-2 border-zinc-100 space-y-1">
+              <a
+                v-for="item in toc"
+                :key="item.id"
+                :href="'#' + item.id"
+                class="group flex items-center gap-3 text-zinc-500 hover:text-indigo-600 transition-all text-sm py-1.5"
+                :style="{ paddingLeft: `${(item.level - 1) * 1.25}rem` }"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-zinc-200 group-hover:bg-indigo-400 transition-colors shrink-0"></span>
+                <span class="truncate">{{ item.text }}</span>
+              </a>
+            </nav>
+          </div>
+
+          <div class="markdown-body prose-custom" v-html="renderedContent" @click="handleCopyClick"></div>
         </div>
       </div>
     </div>
@@ -139,8 +229,36 @@ const handleSubmit = (e?: Event) => {
 </template>
 
 <style scoped>
-.prose-custom :deep(pre.hljs) {
+.flex-1 {
+  scroll-behavior: smooth;
+}
+.prose-custom :deep(.code-block-wrapper) {
+  position: relative;
   margin: 1.5rem 0;
+}
+.prose-custom :deep(.copy-code-button) {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.prose-custom :deep(.copy-code-button:hover) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.prose-custom :deep(pre.hljs) {
+  margin: 0 !important;
   padding: 1.5rem;
   border-radius: 0.75rem;
   overflow: auto;
