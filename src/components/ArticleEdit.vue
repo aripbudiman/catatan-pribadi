@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import type { Article, ArticleInput } from '../types';
-import { Save, Eye, Edit3, List } from 'lucide-vue-next';
+import { Save, Eye, Edit3, List, Palette } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/vs2015.css';
 
 const props = defineProps<{
   article?: Article;
@@ -30,18 +29,39 @@ const slugify = (text: string) => {
     .replace(/--+/g, '-');
 };
 
+const codeThemes = [
+  { name: 'VS 2015', id: 'vs2015' },
+  { name: 'GitHub Dark', id: 'github-dark' },
+  { name: 'Monokai', id: 'monokai-sublime' },
+  { name: 'Atom One Dark', id: 'atom-one-dark' },
+  { name: 'Nord', id: 'nord' },
+  { name: 'Tokyo Night Dark', id: 'tokyo-night-dark' },
+];
+
+const selectedTheme = ref(localStorage.getItem('hljs-theme') || 'vs2015');
+
+watch(selectedTheme, (theme) => {
+  localStorage.setItem('hljs-theme', theme);
+  let link = document.getElementById('hljs-theme-link') as HTMLLinkElement;
+  if (!link) {
+    link = document.createElement('link');
+    link.id = 'hljs-theme-link';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }
+  link.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${theme}.min.css`;
+}, { immediate: true });
+
 const md = new MarkdownIt({
   highlight: function (str, lang) {
-    const highlighted = (lang && hljs.getLanguage(lang))
-      ? hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
-      : md.utils.escapeHtml(str);
-      
-    return `<div class="code-block-wrapper group">
-              <button class="copy-code-button opacity-0 group-hover:opacity-100 transition-opacity" title="Copy code">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              </button>
-              <pre class="hljs"><code>${highlighted}</code></pre>
-            </div>`;
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>';
+      } catch (__) { }
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
   }
 });
 
@@ -81,27 +101,6 @@ const toc = computed(() => {
   
   return headings;
 });
-
-const handleCopyClick = (e: MouseEvent) => {
-  const target = e.target as HTMLElement;
-  const button = target.closest('.copy-code-button') as HTMLButtonElement;
-  
-  if (button) {
-    const wrapper = button.closest('.code-block-wrapper');
-    const code = wrapper?.querySelector('code')?.textContent || '';
-    
-    navigator.clipboard.writeText(code).then(() => {
-      const originalInner = button.innerHTML;
-      button.innerHTML = '<span class="text-[10px] font-bold uppercase tracking-wider">Copied!</span>';
-      button.classList.add('bg-green-500/20', 'border-green-500/50', 'text-green-400');
-      
-      setTimeout(() => {
-        button.innerHTML = originalInner;
-        button.classList.remove('bg-green-500/20', 'border-green-500/50', 'text-green-400');
-      }, 2000);
-    });
-  }
-};
 
 const renderedContent = computed(() => {
   return md.render(content.value || '*No content yet*');
@@ -199,7 +198,21 @@ const handleSubmit = (e?: Event) => {
         <div class="max-w-4xl mx-auto">
           <div class="mb-8">
             <span class="text-xs font-bold text-indigo-600 uppercase tracking-widest">{{ category }}</span>
-            <h1 class="text-4xl font-extrabold text-zinc-900 mt-2">{{ title || 'Untitled Article' }}</h1>
+            <div class="flex items-center justify-between mt-2">
+              <h1 class="text-4xl font-extrabold text-zinc-900">{{ title || 'Untitled Article' }}</h1>
+              
+              <div class="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
+                <Palette class="w-3.5 h-3.5 text-zinc-400" />
+                <select 
+                  v-model="selectedTheme" 
+                  class="text-xs font-semibold text-zinc-600 bg-transparent border-none focus:ring-0 cursor-pointer"
+                >
+                  <option v-for="theme in codeThemes" :key="theme.id" :value="theme.id">
+                    {{ theme.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <div v-if="toc.length > 0" class="mb-12 p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
@@ -221,7 +234,7 @@ const handleSubmit = (e?: Event) => {
             </nav>
           </div>
 
-          <div class="markdown-body prose-custom" v-html="renderedContent" @click="handleCopyClick"></div>
+          <div class="markdown-body prose-custom" v-html="renderedContent"></div>
         </div>
       </div>
     </div>
@@ -232,39 +245,13 @@ const handleSubmit = (e?: Event) => {
 .flex-1 {
   scroll-behavior: smooth;
 }
-.prose-custom :deep(.code-block-wrapper) {
-  position: relative;
-  margin: 1.5rem 0;
-}
-.prose-custom :deep(.copy-code-button) {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem;
-  color: rgba(255, 255, 255, 0.4);
-  cursor: pointer;
-  transition: all 0.2s;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.prose-custom :deep(.copy-code-button:hover) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.2);
-}
 .prose-custom :deep(pre.hljs) {
-  margin: 0 !important;
+  margin: 1rem 0;
   padding: 1.5rem;
   border-radius: 0.75rem;
   overflow: auto;
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  border: 1px solid #27272a;
-  background-color: #27272a;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   font-size: 0.9rem;
   line-height: 1.6;
 }

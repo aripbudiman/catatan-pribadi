@@ -20,13 +20,13 @@
     @apply max-w-none;
   }
   .prose-custom h1 {
-    @apply text-3xl font-bold mb-6 mt-8 text-zinc-900 border-b border-zinc-200 pb-4;
+    @apply text-3xl font-bold mb-4 mt-8 text-zinc-900 border-b border-zinc-200 pb-4;
   }
   .prose-custom h2 {
-    @apply text-2xl font-semibold mb-4 mt-8 text-zinc-800;
+    @apply text-2xl font-semibold mb-3 mt-6 text-zinc-800;
   }
   .prose-custom h3 {
-    @apply text-xl font-semibold mb-3 mt-6 text-zinc-800;
+    @apply text-xl font-semibold mb-2 mt-5 text-zinc-800;
   }
   .prose-custom p {
     @apply mb-4 leading-relaxed text-zinc-600;
