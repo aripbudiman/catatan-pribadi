@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
+import { onClickOutside } from '@vueuse/core';
 import type { Article } from '../types';
-import { Edit2, Trash2, Calendar, Tag, Clock, List, Palette } from 'lucide-vue-next';
+import { Edit2, Trash2, Calendar, Tag, Clock, List, Palette, Check, ChevronDown } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
@@ -47,6 +48,17 @@ watch(selectedTheme, (theme) => {
   }
   link.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${theme}.min.css`;
 }, { immediate: true });
+
+const isThemeDropdownOpen = ref(false);
+const themeDropdownRef = ref(null);
+
+onClickOutside(themeDropdownRef, () => {
+  isThemeDropdownOpen.value = false;
+});
+
+const currentThemeName = computed(() => {
+  return codeThemes.find(t => t.id === selectedTheme.value)?.name || 'Select Theme';
+});
 
 const md = new MarkdownIt({
   highlight: function (str, lang) {
@@ -152,37 +164,71 @@ const handleDelete = () => {
               <Trash2 class="w-5 h-5" />
             </button>
           </div>
-          
-          <div class="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
-            <Palette class="w-3.5 h-3.5 text-zinc-400" />
-            <select 
-              v-model="selectedTheme" 
-              class="text-xs font-semibold text-zinc-600 bg-transparent border-none focus:ring-0 cursor-pointer"
+
+          <div class="relative" ref="themeDropdownRef">
+            <button 
+              @click="isThemeDropdownOpen = !isThemeDropdownOpen"
+              class="flex items-center gap-2 px-3 py-1.5 bg-white border border-zinc-200 rounded-xl shadow-sm hover:border-indigo-300 transition-all text-xs font-semibold text-zinc-600"
             >
-              <option v-for="theme in codeThemes" :key="theme.id" :value="theme.id">
-                {{ theme.name }}
-              </option>
-            </select>
+              <Palette class="w-3.5 h-3.5 text-zinc-400" />
+              <span>{{ currentThemeName }}</span>
+              <ChevronDown :class="['w-3.5 h-3.5 text-zinc-400 transition-transform', isThemeDropdownOpen ? 'rotate-180' : '']" />
+            </button>
+
+            <transition
+              enter-active-class="transition duration-100 ease-out"
+              enter-from-class="transform scale-95 opacity-0"
+              enter-to-class="transform scale-100 opacity-100"
+              leave-active-class="transition duration-75 ease-in"
+              leave-from-class="transform scale-100 opacity-100"
+              leave-to-class="transform scale-95 opacity-0"
+            >
+              <div 
+                v-if="isThemeDropdownOpen"
+                class="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-xl border border-zinc-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+              >
+                <div class="p-1">
+                  <button
+                    v-for="theme in codeThemes"
+                    :key="theme.id"
+                    @click="selectedTheme = theme.id; isThemeDropdownOpen = false"
+                    :class="[
+                      'w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl transition-colors',
+                      selectedTheme === theme.id ? 'bg-indigo-50 text-indigo-700' : 'text-zinc-600 hover:bg-zinc-50'
+                    ]"
+                  >
+                    {{ theme.name }}
+                    <Check v-if="selectedTheme === theme.id" class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
       </div>
 
-      <div v-if="toc.length > 0" class="mb-12 p-6 bg-zinc-50 rounded-2xl border border-zinc-100">
-        <div class="flex items-center gap-2 mb-4 text-zinc-900">
-          <List class="w-4 h-4 text-indigo-500" />
-          <h2 class="text-sm font-bold uppercase tracking-wider">Daftar Isi</h2>
+      <div id="table-of-content" v-if="toc.length > 0" class="mb-12 p-8 bg-gradient-to-br from-zinc-50 to-white rounded-3xl border border-zinc-100 shadow-sm relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+        
+        <div class="flex items-center gap-2.5 mb-2 text-zinc-900">
+          <div class="p-1.5 bg-indigo-50 rounded-lg">
+            <List class="w-4 h-4 text-indigo-600" />
+          </div>
+          <h2 class="text-sm font-extrabold uppercase tracking-widest text-zinc-800">Daftar Isi</h2>
         </div>
-        <nav class="relative pl-4 border-l-2 border-zinc-100 space-y-1">
+        
+        <nav class="relative space-y-1">
           <a v-for="item in toc" :key="item.id" :href="'#' + item.id"
-            class="group flex items-center gap-3 text-zinc-500 hover:text-indigo-600 transition-all text-sm py-1.5"
-            :style="{ paddingLeft: `${(item.level - 1) * 1.25}rem` }">
-            <span class="w-1.5 h-1.5 rounded-full bg-zinc-200 group-hover:bg-indigo-400 transition-colors shrink-0"></span>
-            <span class="truncate">{{ item.text }}</span>
+            class="group flex items-center gap-3 text-zinc-500 hover:text-indigo-600 transition-all text-sm py-2 px-3 rounded-xl hover:bg-indigo-50/50 relative"
+            :style="{ marginLeft: `${(item.level - 1) * 1.5}rem` }">
+            <span class="absolute left-0 w-1 h-0 bg-indigo-500 rounded-full group-hover:h-4 transition-all duration-300"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-zinc-200 group-hover:bg-indigo-400 group-hover:scale-125 transition-all shrink-0"></span>
+            <span class="truncate font-medium">{{ item.text }}</span>
           </a>
         </nav>
       </div>
 
-      <div class="markdown-body prose-custom" v-html="renderedContent"></div>
+      <div id="content" class="markdown-body prose-custom" v-html="renderedContent"></div>
     </div>
   </div>
 </template>

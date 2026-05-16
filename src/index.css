@@ -13,6 +13,13 @@
   hr{
     @apply text-gray-200 border mt-2
   }
+  #content > h2::before{
+    content: "# ";
+    @apply text-slate-800
+  }
+  #content > h2{
+    @apply cursor-pointer hover:text-blue-600 hover:underline
+  }
 }
 
 @layer components {
@@ -29,13 +36,23 @@
     @apply text-xl font-semibold mb-2 mt-5 text-zinc-800;
   }
   .prose-custom p {
-    @apply mb-4 leading-relaxed text-zinc-600;
+    @apply mb-5 leading-relaxed text-zinc-600 text-[1.05rem];
   }
   .prose-custom ul {
-    @apply list-disc list-inside mb-4 space-y-2 text-zinc-600;
+    @apply list-none mb-6 space-y-3 text-zinc-600 pl-2;
+  }
+  .prose-custom ul li {
+    @apply relative pl-6;
+  }
+  .prose-custom ul li::before {
+    content: "";
+    @apply absolute left-0 top-[0.6rem] w-2 h-2 rounded-full bg-indigo-200 border-2 border-indigo-400;
   }
   .prose-custom ol {
-    @apply list-decimal list-inside mb-4 space-y-2 text-zinc-600;
+    @apply list-decimal list-outside mb-6 space-y-4 text-zinc-600 pl-8 font-medium;
+  }
+  .prose-custom ol li {
+    @apply pl-2;
   }
   .prose-custom code:not(pre code) {
     @apply bg-zinc-100 text-rose-600 px-1.5 py-0.5 rounded font-mono text-sm;

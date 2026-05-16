@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
+import { onClickOutside } from '@vueuse/core';
 import type { Article, ArticleInput } from '../types';
-import { Save, Eye, Edit3, List, Palette } from 'lucide-vue-next';
+import { Save, Eye, Edit3, List, Palette, Check, ChevronDown } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
@@ -51,6 +52,17 @@ watch(selectedTheme, (theme) => {
   }
   link.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${theme}.min.css`;
 }, { immediate: true });
+
+const isThemeDropdownOpen = ref(false);
+const themeDropdownRef = ref(null);
+
+onClickOutside(themeDropdownRef, () => {
+  isThemeDropdownOpen.value = false;
+});
+
+const currentThemeName = computed(() => {
+  return codeThemes.find(t => t.id === selectedTheme.value)?.name || 'Select Theme';
+});
 
 const md = new MarkdownIt({
   highlight: function (str, lang) {
@@ -201,16 +213,44 @@ const handleSubmit = (e?: Event) => {
             <div class="flex items-center justify-between mt-2">
               <h1 class="text-4xl font-extrabold text-zinc-900">{{ title || 'Untitled Article' }}</h1>
               
-              <div class="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm">
-                <Palette class="w-3.5 h-3.5 text-zinc-400" />
-                <select 
-                  v-model="selectedTheme" 
-                  class="text-xs font-semibold text-zinc-600 bg-transparent border-none focus:ring-0 cursor-pointer"
+              <div class="relative" ref="themeDropdownRef">
+                <button 
+                  @click="isThemeDropdownOpen = !isThemeDropdownOpen"
+                  class="flex items-center gap-2 px-3 py-1.5 bg-white border border-zinc-200 rounded-xl shadow-sm hover:border-indigo-300 transition-all text-xs font-semibold text-zinc-600"
                 >
-                  <option v-for="theme in codeThemes" :key="theme.id" :value="theme.id">
-                    {{ theme.name }}
-                  </option>
-                </select>
+                  <Palette class="w-3.5 h-3.5 text-zinc-400" />
+                  <span>{{ currentThemeName }}</span>
+                  <ChevronDown :class="['w-3.5 h-3.5 text-zinc-400 transition-transform', isThemeDropdownOpen ? 'rotate-180' : '']" />
+                </button>
+
+                <transition
+                  enter-active-class="transition duration-100 ease-out"
+                  enter-from-class="transform scale-95 opacity-0"
+                  enter-to-class="transform scale-100 opacity-100"
+                  leave-active-class="transition duration-75 ease-in"
+                  leave-from-class="transform scale-100 opacity-100"
+                  leave-to-class="transform scale-95 opacity-0"
+                >
+                  <div 
+                    v-if="isThemeDropdownOpen"
+                    class="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-xl border border-zinc-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <div class="p-1">
+                      <button
+                        v-for="theme in codeThemes"
+                        :key="theme.id"
+                        @click="selectedTheme = theme.id; isThemeDropdownOpen = false"
+                        :class="[
+                          'w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl transition-colors',
+                          selectedTheme === theme.id ? 'bg-indigo-50 text-indigo-700' : 'text-zinc-600 hover:bg-zinc-50'
+                        ]"
+                      >
+                        {{ theme.name }}
+                        <Check v-if="selectedTheme === theme.id" class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </transition>
               </div>
             </div>
           </div>
