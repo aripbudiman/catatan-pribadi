@@ -8,6 +8,7 @@ import 'highlight.js/styles/vs2015.css';
 
 const props = defineProps<{
   article: Article;
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -68,7 +69,7 @@ const handleDelete = () => {
             {{ article.title || 'Untitled Article' }}
           </h1>
         </div>
-        <div class="flex items-center gap-2">
+        <div v-if="!readonly" class="flex items-center gap-2">
           <button
             @click="emit('edit')"
             class="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-indigo-600 transition-all"

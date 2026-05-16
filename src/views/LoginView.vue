@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase';
 import { Loader2, Lock, Mail, User } from 'lucide-vue-next';
+
+const router = useRouter();
 
 const isLogin = ref(true);
 const email = ref('');
@@ -24,9 +27,8 @@ const handleSubmit = async () => {
     } else {
       const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
       await updateProfile(userCredential.user, { displayName: name.value });
-      // Force reload to get updated profile
-      window.location.reload();
     }
+    router.push('/admin');
   } catch (err: any) {
     console.error(err);
     error.value = err.message || 'Authentication failed';
@@ -44,12 +46,12 @@ const handleSubmit = async () => {
           <Lock class="h-8 w-8 text-indigo-600" />
         </div>
         <h2 class="mt-6 text-center text-3xl font-extrabold text-zinc-900 tracking-tight">
-          {{ isLogin ? 'Sign in to DevNotes' : 'Create your account' }}
+          {{ isLogin ? 'Sign in to DevNotes' : 'Create Admin account' }}
         </h2>
         <p class="mt-2 text-center text-sm text-zinc-600">
           Or
           <button @click="isLogin = !isLogin; error = ''" class="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors">
-            {{ isLogin ? 'register a new account' : 'sign in to existing account' }}
+            {{ isLogin ? 'register a new admin' : 'sign in to existing account' }}
           </button>
         </p>
       </div>
@@ -95,6 +97,11 @@ const handleSubmit = async () => {
           </button>
         </div>
       </form>
+      <div class="text-center mt-4">
+        <router-link to="/" class="text-sm font-medium text-zinc-500 hover:text-zinc-800 transition-colors">
+          &larr; Back to Public View
+        </router-link>
+      </div>
     </div>
   </div>
 </template>

@@ -10,6 +10,7 @@ const props = defineProps<{
   selectedId: string | null;
   searchQuery: string;
   user: User | null;
+  readonly?: boolean;
 }>();
 
 const handleLogout = () => {
@@ -45,6 +46,7 @@ const filteredArticles = computed(() => {
           <span>DevNotes</span>
         </div>
         <button
+          v-if="!readonly"
           @click="emit('new')"
           class="p-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
           title="New Article"
@@ -114,6 +116,14 @@ const filteredArticles = computed(() => {
         >
           <LogOut class="w-4 h-4" />
         </button>
+      </div>
+      <div v-else class="flex justify-center">
+        <router-link
+          to="/login"
+          class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-800 text-white rounded-lg text-xs font-semibold hover:bg-zinc-900 transition-all shadow-sm"
+        >
+          Login Admin
+        </router-link>
       </div>
     </div>
   </div>
