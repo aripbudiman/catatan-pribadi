@@ -24,10 +24,21 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to, from, next) => {
+const getCurrentUser = () => {
+  return new Promise((resolve, reject) => {
+    const removeListener = auth.onAuthStateChanged(user => {
+      removeListener();
+      resolve(user);
+    }, reject);
+  });
+};
+
+router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest);
-  const currentUser = auth.currentUser;
+  
+  // Wait for firebase to initialize before checking currentUser
+  const currentUser = await getCurrentUser();
 
   if (requiresAuth && !currentUser) {
     next('/login');
