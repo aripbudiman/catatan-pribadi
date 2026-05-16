@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { onClickOutside } from '@vueuse/core';
 import type { Article, ArticleInput } from '../types';
-import { Save, Eye, Edit3, List, Palette, Check, ChevronDown } from 'lucide-vue-next';
+import { Save, Eye, Edit3, List, Palette, Check, ChevronDown, Loader2 } from 'lucide-vue-next';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
@@ -19,6 +19,8 @@ const title = ref(props.article?.title || '');
 const content = ref(props.article?.content || '');
 const category = ref(props.article?.category || 'General');
 const preview = ref(false);
+const isUploading = ref(false);
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
 const slugify = (text: string) => {
   return text
@@ -118,6 +120,45 @@ const renderedContent = computed(() => {
   return md.render(content.value || '*No content yet*');
 });
 
+const handlePaste = async (event: ClipboardEvent) => {
+  const items = event.clipboardData?.items;
+  if (!items) return;
+
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      event.preventDefault();
+      isUploading.value = true;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        
+        const cursorState = {
+          start: textareaRef.value?.selectionStart || 0,
+          end: textareaRef.value?.selectionEnd || 0
+        };
+        
+        const before = content.value.substring(0, cursorState.start);
+        const after = content.value.substring(cursorState.end);
+        
+        // Insert base64 image
+        content.value = before + `![pasted-image](${base64})` + after;
+        isUploading.value = false;
+      };
+      
+      reader.onerror = () => {
+        console.error('Failed to read file');
+        isUploading.value = false;
+      };
+
+      reader.readAsDataURL(file);
+    }
+  }
+};
+
 const handleSubmit = (e?: Event) => {
   if (e) e.preventDefault();
   if (!title.value || !content.value) return;
@@ -195,15 +236,26 @@ const handleSubmit = (e?: Event) => {
             />
           </div>
         </div>
-        <div class="flex-1 flex flex-col space-y-2">
-          <label class="text-xs font-bold text-zinc-500 uppercase tracking-wider">Content (Markdown)</label>
-          <textarea
-            v-model="content"
-            placeholder="# Start writing your documentation..."
-            class="flex-1 w-full p-6 bg-zinc-50 border border-zinc-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm leading-relaxed resize-none"
-            required
-          ></textarea>
-        </div>
+          <div class="flex-1 flex flex-col space-y-2 relative">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-zinc-500 uppercase tracking-wider">Content (Markdown)</label>
+              <div v-if="isUploading" class="flex items-center gap-2 text-indigo-600 text-xs font-bold animate-pulse">
+                <Loader2 class="w-3 h-3 animate-spin" />
+                Processing image...
+              </div>
+            </div>
+            <textarea
+              ref="textareaRef"
+              v-model="content"
+              @paste="handlePaste"
+              placeholder="# Start writing your documentation..."
+              class="flex-1 w-full p-6 bg-zinc-50 border border-zinc-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm leading-relaxed resize-none"
+              required
+            ></textarea>
+            <div class="absolute bottom-4 right-6 text-[10px] text-zinc-400 font-medium">
+              Pro tip: You can paste images directly here (Ctrl+V)
+            </div>
+          </div>
       </form>
       
       <div v-else class="flex-1 overflow-y-auto p-8 bg-white">

@@ -60,7 +60,10 @@
   .prose-custom blockquote {
     @apply border-l-4 border-zinc-300 pl-4 italic text-zinc-500 my-6;
   }
+  .prose-custom img {
+    @apply rounded-2xl my-8 max-w-full h-auto mx-auto border border-zinc-100 block;
+  }
   .prose-custom a {
-    @apply text-indigo-600 hover:underline;
+    @apply text-indigo-600 hover:underline font-medium;
   }
 }
