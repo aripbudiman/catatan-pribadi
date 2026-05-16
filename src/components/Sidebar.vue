@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Article } from '../types';
-import { Search, Plus, Book, Hash, ChevronRight } from 'lucide-vue-next';
+import type { User } from 'firebase/auth';
+import { auth } from '../firebase';
+import { Search, Plus, Book, Hash, ChevronRight, LogOut } from 'lucide-vue-next';
 
 const props = defineProps<{
   articles: Article[];
   selectedId: string | null;
   searchQuery: string;
-  walletAddress: string | null;
+  user: User | null;
 }>();
+
+const handleLogout = () => {
+  auth.signOut();
+};
 
 const emit = defineEmits<{
   (e: 'select', id: string): void;
   (e: 'new'): void;
   (e: 'update:searchQuery', query: string): void;
-  (e: 'connectWallet'): void;
 }>();
 
 const categories = computed(() => {
@@ -92,20 +97,23 @@ const filteredArticles = computed(() => {
     </div>
 
     <div class="p-4 border-t border-zinc-200 bg-zinc-100/50 space-y-3">
-      <div v-if="walletAddress" class="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
-        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span class="text-xs font-mono truncate">
-          {{ walletAddress.slice(0, 6) }}...{{ walletAddress.slice(-4) }}
-        </span>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
-          AB
+      <div v-if="user" class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0">
+            {{ user.displayName ? user.displayName.substring(0, 2).toUpperCase() : 'U' }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-zinc-700 truncate">{{ user.displayName || 'User' }}</p>
+            <p class="text-[10px] text-zinc-500 truncate">{{ user.email }}</p>
+          </div>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-xs font-semibold text-zinc-700 truncate">Arif Budiman</p>
-          <p class="text-[10px] text-zinc-500 truncate">muhamadarifbudiman22@gmail.com</p>
-        </div>
+        <button 
+          @click="handleLogout"
+          class="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          title="Sign out"
+        >
+          <LogOut class="w-4 h-4" />
+        </button>
       </div>
     </div>
   </div>

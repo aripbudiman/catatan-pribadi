@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth } from './firebase';
 import Sidebar from './components/Sidebar.vue';
 import ArticleView from './components/ArticleView.vue';
 import ArticleEdit from './components/ArticleEdit.vue';
+import Login from './components/Login.vue';
 import type { Article, ArticleInput } from './types';
 import { Loader2, BookOpen, AlertCircle } from 'lucide-vue-next';
 
@@ -13,14 +16,33 @@ const selectedId = ref<string | null>(null);
 const isEditing = ref(false);
 const isCreating = ref(false);
 const loading = ref(true);
+const authLoading = ref(true);
 const searchQuery = ref('');
-const walletAddress = ref<string | null>(null);
 const error = ref<string | null>(null);
+const currentUser = ref<User | null>(null);
+
+onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    currentUser.value = user;
+    authLoading.value = false;
+    if (user) {
+      fetchArticles();
+    }
+  });
+});
+
+const getAuthToken = async () => {
+  if (!currentUser.value) return '';
+  const token = await currentUser.value.getIdToken();
+  return `?auth=${token}`;
+};
 
 const fetchArticles = async () => {
   try {
     error.value = null;
-    const response = await fetch(`${FIREBASE_URL}.json`);
+    loading.value = true;
+    const authQuery = await getAuthToken();
+    const response = await fetch(`${FIREBASE_URL}.json${authQuery}`);
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
@@ -55,46 +77,14 @@ const fetchArticles = async () => {
   }
 };
 
-const checkWalletConnection = async () => {
-  if (typeof window.ethereum !== 'undefined') {
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      if (accounts.length > 0) {
-        walletAddress.value = accounts[0];
-      }
-    } catch (err) {
-      console.error('Failed to check wallet connection:', err);
-    }
-  }
-};
-
-onMounted(() => {
-  fetchArticles();
-  checkWalletConnection();
-});
-
-const handleConnectWallet = async () => {
-  if (typeof window.ethereum !== 'undefined') {
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      if (accounts.length > 0) {
-        walletAddress.value = accounts[0];
-      }
-    } catch (err: any) {
-      console.error('Failed to connect to MetaMask:', err);
-      alert(`Failed to connect to MetaMask: ${err.message || 'Unknown error'}`);
-    }
-  } else {
-    alert('MetaMask is not installed. Please install it to use this feature.');
-  }
-};
-
 const handleSave = async (data: ArticleInput) => {
   try {
     const now = new Date().toISOString();
+    const authQuery = await getAuthToken();
+    
     if (isCreating.value) {
       const articleData = { ...data, category: data.category || 'General', created_at: now, updated_at: now };
-      const response = await fetch(`${FIREBASE_URL}.json`, {
+      const response = await fetch(`${FIREBASE_URL}.json${authQuery}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(articleData),
@@ -107,7 +97,7 @@ const handleSave = async (data: ArticleInput) => {
       isCreating.value = false;
     } else if (selectedId.value) {
       const articleData = { ...data, category: data.category || 'General', updated_at: now };
-      const response = await fetch(`${FIREBASE_URL}/${selectedId.value}.json`, {
+      const response = await fetch(`${FIREBASE_URL}/${selectedId.value}.json${authQuery}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(articleData),
@@ -126,7 +116,8 @@ const handleSave = async (data: ArticleInput) => {
 const handleDelete = async () => {
   if (!selectedId.value) return;
   try {
-    const response = await fetch(`${FIREBASE_URL}/${selectedId.value}.json`, { method: 'DELETE' });
+    const authQuery = await getAuthToken();
+    const response = await fetch(`${FIREBASE_URL}/${selectedId.value}.json${authQuery}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(`Firebase error ${response.status}`);
     const remaining = articles.value.filter((a) => a.id !== selectedId.value);
     articles.value = remaining;
@@ -158,28 +149,32 @@ const cancelEditing = () => {
     selectedId.value = articles.value[0].id;
   }
 };
-
 </script>
 
 <template>
-  <div v-if="loading" class="h-screen w-full flex flex-col items-center justify-center bg-zinc-50 gap-4">
+  <div v-if="authLoading" class="h-screen w-full flex flex-col items-center justify-center bg-zinc-50 gap-4">
     <Loader2 class="w-8 h-8 text-indigo-600 animate-spin" />
-    <p class="text-sm font-medium text-zinc-500">Loading your documentation...</p>
+    <p class="text-sm font-medium text-zinc-500">Authenticating...</p>
   </div>
+
+  <Login v-else-if="!currentUser" />
 
   <div v-else class="flex h-screen bg-zinc-50 overflow-hidden">
     <Sidebar
       :articles="articles"
       :selectedId="selectedId"
       :searchQuery="searchQuery"
-      :walletAddress="walletAddress"
+      :user="currentUser"
       @update:searchQuery="searchQuery = $event"
       @select="selectArticle"
       @new="startCreating"
-      @connectWallet="handleConnectWallet"
     />
 
     <main class="flex-1 relative overflow-hidden">
+      <div v-if="loading" class="absolute inset-0 flex flex-col items-center justify-center bg-white z-40 gap-4">
+        <Loader2 class="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+
       <Transition name="fade" mode="out-in">
         <div v-if="error === 'PERMISSION_DENIED'" key="error-permission" class="absolute inset-0 flex items-center justify-center p-8 bg-white z-50">
           <div class="max-w-md w-full bg-amber-50 border border-amber-200 rounded-xl p-6 text-center space-y-4 shadow-sm">
@@ -189,23 +184,9 @@ const cancelEditing = () => {
             <div>
               <h2 class="text-lg font-bold text-amber-900">Permission Denied</h2>
               <p class="mt-2 text-sm text-amber-700">
-                Your Firebase Realtime Database is currently locked. To fix this, you need to update your database rules to be public or provide a Secret.
+                You do not have permission to access these articles.
               </p>
             </div>
-            <div class="bg-white/50 border border-amber-200 rounded-lg p-4 text-left">
-              <p class="text-[10px] font-mono text-amber-900 break-all leading-relaxed whitespace-pre">
-{
-  "rules": {
-    "article": {
-      ".read": "true",
-      ".write": "true"
-    }
-  }
-}</p>
-            </div>
-            <p class="text-[10px] text-amber-600">
-              Update your <strong>Firebase Console</strong> rules to include the <code>article</code> path as shown above.
-            </p>
             <button
               @click="fetchArticles"
               class="w-full py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors shadow-sm"
